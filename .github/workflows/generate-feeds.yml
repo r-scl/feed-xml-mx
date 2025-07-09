@@ -29,7 +29,7 @@ jobs:
       run: python feed_processor.py
     
     - name: Upload feeds as artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: product-feeds
         path: output/
