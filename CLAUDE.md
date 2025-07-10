@@ -49,6 +49,14 @@ When updating the workflow, ensure:
 - Use `actions/upload-artifact@v4` (not v3 - deprecated)
 - Python version matches local development (currently 3.10)
 - GitHub Pages deployment is optional (controlled by conditional)
+- Workflow has proper permissions set (`contents: write`, `pages: write`, `id-token: write`)
+
+### GitHub Pages Setup
+If deployment fails with permission errors:
+1. Ensure the workflow has the required permissions (already configured)
+2. Enable GitHub Pages in repository Settings > Pages
+3. Select "Deploy from a branch" and choose `gh-pages` branch
+4. The workflow will create this branch automatically on first successful run
 
 ## Development Notes
 

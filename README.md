@@ -44,10 +44,19 @@ El workflow se ejecuta:
 - En cada push a la rama `main`
 - Manualmente desde la pestaña Actions
 
+### Configuración de GitHub Pages
+
+1. Ve a Settings > Pages en tu repositorio
+2. En "Source", selecciona "Deploy from a branch"
+3. Selecciona la rama `gh-pages` y carpeta `/ (root)`
+4. Guarda los cambios
+
 ### URLs de los feeds (después de configurar GitHub Pages)
 
 - Google: `https://[tu-usuario].github.io/[repo]/feed_google.xml`
 - Facebook: `https://[tu-usuario].github.io/[repo]/feed_facebook.xml`
+
+**Nota**: La primera vez puede tomar unos minutos en estar disponible.
 
 ## Configuración en las plataformas
 
