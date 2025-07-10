@@ -46,8 +46,12 @@ class FeedProcessor:
         price_match = re.match(r'(\d+\.?\d*)\s*MXN', price)
         if price_match:
             price_value = float(price_match.group(1))
-            # Formatear con 2 decimales
-            return f"{price_value:.2f} MXN"
+            if platform == 'facebook':
+                # Facebook: formato $380,50
+                return f"${price_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            else:
+                # Google: mantener formato con MXN
+                return f"{price_value:.2f} MXN"
         return price
     
     def generate_description(self, title, platform='both'):
@@ -56,22 +60,9 @@ class FeedProcessor:
         """
         base_desc = title.strip()
         
-        if platform == 'facebook':
-            # Facebook prefiere descripciones más detalladas
-            if "Tiras Reactivas" in title:
-                base_desc += ". Tiras reactivas para medición precisa de glucosa en sangre"
-            elif "Lancetas" in title:
-                base_desc += ". Lancetas estériles para punción prácticamente indolora"
-            elif "Kit" in title or "Pack" in title:
-                base_desc += ". Kit completo para el monitoreo de glucosa"
-            elif "Glucómetro" in title:
-                base_desc += ". Medidor de glucosa de alta precisión"
-            else:
-                base_desc += ". Producto para el cuidado de la diabetes"
-        else:
-            # Google acepta descripciones más simples
-            if not base_desc.endswith('.'):
-                base_desc += '.'
+        # Solo agregar punto final si no lo tiene
+        if not base_desc.endswith('.'):
+            base_desc += '.'
         
         return base_desc
     
