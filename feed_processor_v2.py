@@ -188,7 +188,8 @@ class EnhancedFeedProcessor:
             # Enhanced pricing with sale price support
             price_elem = item.find('.//g:price', self.namespaces)
             if price_elem is not None and price_elem.text:
-                if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
+                # Check if product has a real discount
+                if enhanced_data.get('original_price') and enhanced_data.get('sale_price') and enhanced_data['original_price'] > enhanced_data['sale_price']:
                     # Product has a discount - use original price as main price
                     price_elem.text = f"{enhanced_data['original_price']:.2f} MXN"
                     # Add sale price element
@@ -201,10 +202,10 @@ class EnhancedFeedProcessor:
                     # Using -0600 for consistency (CST)
                     sale_date_elem.text = f"{today.strftime('%Y-%m-%d')}T00:00:00-0600/{today.strftime('%Y-%m-%d')}T23:59:59-0600"
                 elif enhanced_data.get('sale_price'):
-                    # Product has no discount - use sale price as main price
+                    # Product has no discount - use sale price as the regular price
                     price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
                 else:
-                    # No enhanced pricing - format existing price
+                    # No enhanced pricing - format existing price from XML
                     price_elem.text = self.format_price(price_elem.text, 'google')
             
             # Add enhanced availability with stock quantity
@@ -365,7 +366,7 @@ class EnhancedFeedProcessor:
                 ET.SubElement(fb_item, 'condition').text = 'new'  # Default for medical products
             
             # Enhanced pricing following Facebook specifications
-            if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
+            if enhanced_data.get('original_price') and enhanced_data.get('sale_price') and enhanced_data['original_price'] > enhanced_data['sale_price']:
                 # Product has a discount - price is the regular price, sale_price is the discounted price
                 ET.SubElement(fb_item, 'price').text = f"{enhanced_data['original_price']:.2f} MXN"
                 ET.SubElement(fb_item, 'sale_price').text = f"{enhanced_data['sale_price']:.2f} MXN"
