@@ -15,7 +15,15 @@ from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 from urllib.parse import urlparse
 
-import structlog
+try:
+    import structlog
+except ImportError:
+    class MockLogger:
+        def info(self, msg, **kwargs): print(f"INFO: {msg} {kwargs}")
+        def warning(self, msg, **kwargs): print(f"WARNING: {msg} {kwargs}")
+        def error(self, msg, **kwargs): print(f"ERROR: {msg} {kwargs}")
+    structlog = type('MockStructlog', (), {'get_logger': lambda name: MockLogger()})()
+
 from pydantic import BaseModel, Field, validator
 
 from error_handling import ConfigurationError, SecurityError, ErrorSeverity

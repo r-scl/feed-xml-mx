@@ -14,7 +14,20 @@ from typing import Dict, List, Optional, Any, Union
 from urllib.parse import urlparse
 
 import aiofiles
-import structlog
+try:
+    import structlog
+    STRUCTLOG_AVAILABLE = True
+except ImportError:
+    STRUCTLOG_AVAILABLE = False
+    class MockLogger:
+        def info(self, msg, **kwargs): print(f"INFO: {msg} {kwargs}")
+        def warning(self, msg, **kwargs): print(f"WARNING: {msg} {kwargs}")
+        def error(self, msg, **kwargs): print(f"ERROR: {msg} {kwargs}")
+    structlog = type('MockStructlog', (), {
+        'get_logger': lambda name: MockLogger(),
+        'configure': lambda *args, **kwargs: None
+    })()
+
 from pydantic import ValidationError
 
 # Import our enhanced modules

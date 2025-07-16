@@ -11,7 +11,19 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
 
-import structlog
+try:
+    import structlog
+    STRUCTLOG_AVAILABLE = True
+except ImportError:
+    STRUCTLOG_AVAILABLE = False
+    # Simple fallback logger
+    class MockLogger:
+        def info(self, msg, **kwargs): print(f"INFO: {msg} {kwargs}")
+        def warning(self, msg, **kwargs): print(f"WARNING: {msg} {kwargs}")
+        def error(self, msg, **kwargs): print(f"ERROR: {msg} {kwargs}")
+        def exception(self, msg, **kwargs): print(f"EXCEPTION: {msg} {kwargs}")
+    structlog = type('MockStructlog', (), {'get_logger': lambda name: MockLogger()})()
+
 from pydantic import BaseModel, Field
 
 

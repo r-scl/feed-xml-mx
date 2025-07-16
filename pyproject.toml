@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "feedxml-mx"
 version = "2.0.0"
 description = "Enhanced XML feed processor for Accu-Chek Mexico with web scraping capabilities"
-readme = "README.md"
+# readme = "README.md"  # Commented out until README is created
 license = {file = "LICENSE"}
 authors = [
     {name = "FeedXML-MX Team", email = "team@feedxml-mx.com"},
@@ -50,16 +50,16 @@ security = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/feedxml-mx/feedxml-mx"
-Documentation = "https://feedxml-mx.readthedocs.io"
-Repository = "https://github.com/feedxml-mx/feedxml-mx.git"
-Issues = "https://github.com/feedxml-mx/feedxml-mx/issues"
+Homepage = "https://github.com/r-scl/feed-xml-mx"
+Repository = "https://github.com/r-scl/feed-xml-mx.git"
+Issues = "https://github.com/r-scl/feed-xml-mx/issues"
 
-[project.scripts]
-feedxml-mx = "feed_processor_2025:main"
+# [project.scripts]
+# feedxml-mx = "feed_processor_2025:main"  # Commented out for now
 
+# Simple package structure - no src layout
 [tool.hatch.build.targets.wheel]
-packages = ["src/feedxml_mx"]
+# packages = ["src/feedxml_mx"]  # Commented out - using simple layout
 
 [tool.ruff]
 line-length = 120
@@ -147,12 +147,12 @@ module = [
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-minversion = "8.0"
+minversion = "7.0"
 addopts = [
     "--strict-markers",
     "--strict-config",
     "--disable-warnings",
-    "--cov=feedxml_mx",
+    # "--cov=feedxml_mx",  # Commented out until package structure is ready
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
