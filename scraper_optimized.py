@@ -10,7 +10,15 @@ from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, AsyncGenerator
 from urllib.parse import urljoin
 
-import structlog
+try:
+    import structlog
+except ImportError:
+    class MockLogger:
+        def info(self, msg, **kwargs): print(f"INFO: {msg} {kwargs}")
+        def warning(self, msg, **kwargs): print(f"WARNING: {msg} {kwargs}")
+        def error(self, msg, **kwargs): print(f"ERROR: {msg} {kwargs}")
+    structlog = type('MockStructlog', (), {'get_logger': lambda name: MockLogger()})()
+
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from bs4 import BeautifulSoup
 
