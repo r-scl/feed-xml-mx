@@ -185,11 +185,21 @@ class EnhancedFeedProcessor:
             if link_elem is not None and link_elem.text:
                 link_elem.text = self.clean_url(link_elem.text)
             
-            # Enhanced pricing - always use the final price customer will pay
+            # Enhanced pricing with sale price support
             price_elem = item.find('.//g:price', self.namespaces)
             if price_elem is not None and price_elem.text:
-                if enhanced_data.get('sale_price'):
-                    # Use the sale price (final price customer pays)
+                if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
+                    # Product has a discount - use original price as main price
+                    price_elem.text = f"{enhanced_data['original_price']:.2f} MXN"
+                    # Add sale price element
+                    sale_price_elem = ET.SubElement(item, 'g:sale_price')
+                    sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
+                    # Add sale price effective date (today only)
+                    sale_date_elem = ET.SubElement(item, 'g:sale_price_effective_date')
+                    today = datetime.now()
+                    sale_date_elem.text = f"{today.strftime('%Y-%m-%d')}T00:00:00/{today.strftime('%Y-%m-%d')}T23:59:59"
+                elif enhanced_data.get('sale_price'):
+                    # Product has no discount - use sale price as main price
                     price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
                 else:
                     # No enhanced pricing - format existing price
