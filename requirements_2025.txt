@@ -1,0 +1,35 @@
+# FeedXML-MX v2.0 - 2025 Dependencies
+# Performance and Type Safety
+requests>=2.32.3  # Latest with security fixes
+httpx>=0.27.0     # Modern async HTTP client for future upgrades
+playwright>=1.48.0  # Latest Playwright with performance improvements
+beautifulsoup4>=4.12.3  # Latest stable
+lxml>=5.2.2       # Latest with security patches
+
+# Data Validation and Serialization
+pydantic>=2.9.2   # Latest with performance improvements
+pydantic-core>=2.27.1  # Core validation engine
+pydantic-settings>=2.6.1  # Environment variable management
+
+# Async and Concurrency
+aiofiles>=24.1.0  # Async file operations
+asyncio-throttle>=1.0.2  # Rate limiting for scraping
+
+# Logging and Monitoring
+structlog>=24.4.0  # Structured logging
+loguru>=0.7.2     # Better error handling and formatting
+
+# Development and Quality
+ruff>=0.6.9       # Fast linter and formatter
+mypy>=1.13.0      # Type checking
+pytest>=8.3.3    # Testing framework
+pytest-asyncio>=0.24.0  # Async test support
+pytest-cov>=5.0.0  # Coverage reporting
+
+# Performance Monitoring
+memory-profiler>=0.61.0  # Memory usage analysis
+psutil>=6.1.0     # System monitoring
+
+# Security
+bandit[toml]>=1.7.10  # Security linting
+safety>=3.2.9     # Vulnerability scanning

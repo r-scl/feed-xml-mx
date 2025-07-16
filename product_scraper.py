@@ -175,20 +175,33 @@ class ProductScraper:
             if quantity_input and quantity_input.get('max'):
                 return int(quantity_input.get('max'))
             
-            # Look for stock indicators in page text
+            # Look for stock indicators in page text and HTML content
             page_text = soup.get_text()
+            html_content = str(soup)
+            
+            # Multiple patterns to catch different stock formats
             stock_patterns = [
-                r'(\d+)\s*disponibles?',
+                r'disponibles:\s*(\d+)',  # "disponibles:63"
+                r'disponibles\s*(\d+)',   # "disponibles 63"
+                r'(\d+)\s*disponibles?',  # "63 disponibles"
                 r'(\d+)\s*unidades?\s*disponibles?',
                 r'stock:\s*(\d+)',
                 r'cantidad\s*disponible:\s*(\d+)',
-                r'(\d+)\s*en\s*stock'
+                r'(\d+)\s*en\s*stock',
+                r'"stock"\s*:\s*(\d+)',   # JSON data
+                r'"quantity"\s*:\s*(\d+)', # JSON data
+                r'quantity.*?(\d+)',      # Various quantity patterns
             ]
             
-            for pattern in stock_patterns:
-                match = re.search(pattern, page_text, re.IGNORECASE)
-                if match:
-                    return int(match.group(1))
+            # Search in both page text and HTML
+            for content in [page_text, html_content]:
+                for pattern in stock_patterns:
+                    match = re.search(pattern, content, re.IGNORECASE)
+                    if match:
+                        stock_num = int(match.group(1))
+                        # Validate reasonable stock numbers (1-1000)
+                        if 1 <= stock_num <= 1000:
+                            return stock_num
             
             # Look for JavaScript data objects that might contain stock info
             scripts = soup.find_all('script')
@@ -220,19 +233,65 @@ class ProductScraper:
         }
         
         try:
-            # Extract detailed description
-            desc_selectors = [
-                '.product-description',
-                '.description',
-                '[class*="descripcion"]',
-                '.product-details'
-            ]
+            # First, try to extract from JavaScript 'dataProd' object
+            scripts = soup.find_all('script')
+            for script in scripts:
+                if script.string and 'let dataProd' in script.string:
+                    # Look for descripcionLarga in the dataProd object
+                    desc_match = re.search(r'"descripcionLarga"\s*:\s*"([^"]*)"', script.string)
+                    if desc_match:
+                        desc_text = desc_match.group(1)
+                        # Clean up escaped characters
+                        desc_text = desc_text.replace('\\"', '"').replace('\\n', ' ').replace('\\r', '')
+                        if len(desc_text.strip()) > 10:
+                            details['detailed_description'] = desc_text.strip()
+                            break
             
-            for selector in desc_selectors:
-                desc_element = soup.select_one(selector)
-                if desc_element:
-                    details['detailed_description'] = desc_element.get_text(strip=True)
-                    break
+            # If no descripcionLarga found, extract from #description div
+            if not details['detailed_description']:
+                desc_div = soup.find('div', id='description')
+                if desc_div:
+                    # Process all content within the description div
+                    description_parts = []
+                    
+                    # Extract all text content while preserving structure
+                    for element in desc_div.find_all(['p', 'li', 'div', 'span']):
+                        text = element.get_text(strip=True)
+                        if text and len(text) > 10:  # Skip very short or empty elements
+                            description_parts.append(text)
+                    
+                    # If we found structured content, join it
+                    if description_parts:
+                        details['detailed_description'] = ' '.join(description_parts)
+                    else:
+                        # Fallback to the entire div text
+                        details['detailed_description'] = desc_div.get_text(strip=True)
+            
+            # Fallback selectors if neither above methods work
+            if not details['detailed_description']:
+                fallback_selectors = [
+                    '.product-description',
+                    '.description', 
+                    '[class*="descripcion"]',
+                    '.product-details',
+                    '.product-info',
+                    '.caracteristicas',
+                    '[class*="detail"]'
+                ]
+                
+                for selector in fallback_selectors:
+                    desc_element = soup.select_one(selector)
+                    if desc_element:
+                        desc_text = desc_element.get_text(strip=True)
+                        if len(desc_text) > 50:  # Only use substantial descriptions
+                            details['detailed_description'] = desc_text
+                            break
+            
+            # Final fallback: use meta description
+            if not details['detailed_description']:
+                meta_desc = soup.find('meta', attrs={'name': 'description'})
+                if meta_desc and meta_desc.get('content'):
+                    details['detailed_description'] = meta_desc.get('content')
             
             # Extract features (look for lists)
             feature_lists = soup.find_all(['ul', 'ol'])
@@ -255,14 +314,37 @@ class ProductScraper:
                             items = [li.get_text(strip=True) for li in next_ul.find_all('li')]
                             details['included_items'].extend(items)
             
-            # Extract additional images
+            # Extract additional images with better filtering
             img_elements = soup.find_all('img')
+            seen_images = set()
+            
             for img in img_elements:
-                src = img.get('src') or img.get('data-src')
-                if src and 'product' in src.lower():
-                    full_url = urljoin(self.base_url, src)
-                    if full_url not in details['additional_images']:
-                        details['additional_images'].append(full_url)
+                # Check multiple possible src attributes
+                src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
+                if not src:
+                    continue
+                
+                # Filter for product images and CDN images
+                if any(keyword in src.lower() for keyword in 
+                      ['product', 'ecommerce', 'cdn.gdar.com.mx', 'accu-chek']):
+                    
+                    # Convert relative URLs to absolute
+                    if src.startswith('//'):
+                        src = 'https:' + src
+                    elif src.startswith('/'):
+                        src = urljoin(self.base_url, src)
+                    
+                    # Avoid duplicates and very small images
+                    if (src not in seen_images and 
+                        not any(exclude in src.lower() for exclude in ['thumb', 'icon', 'logo']) and
+                        src.startswith('http')):
+                        
+                        details['additional_images'].append(src)
+                        seen_images.add(src)
+                        
+                        # Limit to reasonable number of images
+                        if len(details['additional_images']) >= 10:
+                            break
                         
         except Exception as e:
             logger.warning(f"Error extracting product details: {e}")
@@ -278,8 +360,23 @@ class ProductScraper:
             page = await self.create_page()
             
             # Navigate to product page
-            await page.goto(product_url, timeout=self.timeout)
+            response = await page.goto(product_url, timeout=self.timeout)
+            
+            # Check for 404 or other error responses
+            if response.status >= 400:
+                logger.warning(f"Product {product_id} returned HTTP {response.status}: {product_url}")
+                await page.close()
+                return None
+            
             await page.wait_for_load_state('networkidle')
+            
+            # Additional 404 detection - check page content
+            page_title = await page.title()
+            if any(error_text in page_title.lower() for error_text in 
+                  ['404', 'not found', 'página no encontrada', 'error']):
+                logger.warning(f"Product {product_id} appears to be 404: {product_url}")
+                await page.close()
+                return None
             
             # Get page content
             content = await page.content()

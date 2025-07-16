@@ -208,6 +208,12 @@ class EnhancedFeedProcessor:
             if title_elem is not None:
                 self.add_custom_labels(item, title_elem.text, enhanced_data)
             
+            # Add additional images for Google (up to 10 additional images)
+            if enhanced_data.get('additional_images'):
+                for i, img_url in enumerate(enhanced_data['additional_images'][:10]):
+                    additional_img_elem = ET.SubElement(item, 'g:additional_image_link')
+                    additional_img_elem.text = img_url
+            
             # Enhanced description
             desc_elem = item.find('.//g:description', self.namespaces)
             if desc_elem is not None and enhanced_data.get('detailed_description'):
@@ -319,6 +325,12 @@ class EnhancedFeedProcessor:
             # Add MPN if available from scraping
             if enhanced_data.get('sku'):
                 ET.SubElement(fb_item, 'mpn').text = enhanced_data['sku']
+            
+            # Add additional images for Facebook (up to 10 additional images)
+            if enhanced_data.get('additional_images'):
+                for i, img_url in enumerate(enhanced_data['additional_images'][:10]):
+                    additional_img_elem = ET.SubElement(fb_item, 'additional_image_link')
+                    additional_img_elem.text = img_url
         
         return fb_root
     
