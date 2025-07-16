@@ -453,7 +453,7 @@ async def test_scraper():
         print("\n=== Price Elements ===")
         price_elements = soup.find_all(text=re.compile(r"\$\d+"))
         for i, elem in enumerate(price_elements[:5]):  # First 5 price elements
-            print(f"Price {i+1}: {elem.strip()}")
+            print(f"Price {i + 1}: {elem.strip()}")
 
         # Look for any elements with 'price' in class
         price_divs = soup.find_all(["div", "span"], class_=re.compile(r"price", re.I))
