@@ -89,7 +89,7 @@ jobs:
 
     - name: Type check with MyPy
       run: |
-        mypy . --show-error-codes --pretty
+        mypy . --config-file=mypy_ci.ini --show-error-codes --pretty
 
     - name: Security scan with Bandit
       run: |
