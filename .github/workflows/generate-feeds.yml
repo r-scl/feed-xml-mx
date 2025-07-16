@@ -39,9 +39,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    - name: Install Playwright browsers
+      run: playwright install chromium
+    
     - name: Generate enhanced feeds (v2.0)
       env:
-        ENABLE_SCRAPING: ${{ github.event.inputs.enable_scraping || 'false' }}
+        ENABLE_SCRAPING: ${{ github.event.inputs.enable_scraping || 'true' }}
       run: python feed_processor_v2.py
     
     - name: Upload feeds as artifacts
