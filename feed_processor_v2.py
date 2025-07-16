@@ -10,7 +10,7 @@ import re
 import json
 import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
 from typing import Dict, List, Optional, Any
 import logging
@@ -194,6 +194,10 @@ class EnhancedFeedProcessor:
                     # Add sale price element
                     sale_price_elem = ET.SubElement(item, 'g:sale_price')
                     sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
+                    # Add sale price effective date (today only)
+                    sale_date_elem = ET.SubElement(item, 'g:sale_price_effective_date')
+                    today = datetime.now()
+                    sale_date_elem.text = f"{today.strftime('%Y-%m-%d')}T00:00:00/{today.strftime('%Y-%m-%d')}T23:59:59"
                 elif enhanced_data.get('sale_price'):
                     # Product has no discount - use sale price as main price
                     price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
