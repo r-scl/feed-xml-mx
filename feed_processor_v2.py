@@ -90,7 +90,8 @@ class EnhancedFeedProcessor:
         if price_match:
             price_value = float(price_match.group(1))
             if platform == 'facebook':
-                return f"${price_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                # Facebook requires: "9.99 USD" format - no currency symbols, space + ISO code
+                return f"{price_value:.2f} MXN"
             else:
                 return f"{price_value:.2f} MXN"
         return price
@@ -318,7 +319,7 @@ class EnhancedFeedProcessor:
             if image_elem is not None:
                 ET.SubElement(fb_item, 'image_link').text = image_elem.text
             
-            # Enhanced availability with stock
+            # Enhanced availability with stock (Facebook standard values - required field)
             avail_elem = item.find('.//g:availability', self.namespaces)
             if avail_elem is not None:
                 if enhanced_data.get('stock_quantity') is not None:
@@ -329,32 +330,54 @@ class EnhancedFeedProcessor:
                     else:
                         ET.SubElement(fb_item, 'availability').text = 'out of stock'
                 else:
-                    ET.SubElement(fb_item, 'availability').text = avail_elem.text
+                    # Map common availability values to Facebook standard
+                    original_availability = avail_elem.text.lower()
+                    if original_availability in ['in stock', 'available']:
+                        ET.SubElement(fb_item, 'availability').text = 'in stock'
+                    elif original_availability in ['out of stock', 'unavailable']:
+                        ET.SubElement(fb_item, 'availability').text = 'out of stock'
+                    else:
+                        ET.SubElement(fb_item, 'availability').text = 'in stock'  # Default
+            else:
+                # Ensure availability is always present (required field)
+                ET.SubElement(fb_item, 'availability').text = 'in stock'  # Default
             
-            # Condition
+            # Condition (Facebook requires specific values)
             cond_elem = item.find('.//g:condition', self.namespaces)
             if cond_elem is not None:
-                ET.SubElement(fb_item, 'condition').text = cond_elem.text
+                # Map to Facebook standard values: new, refurbished, used
+                original_condition = cond_elem.text.lower()
+                if 'new' in original_condition or 'nuevo' in original_condition:
+                    ET.SubElement(fb_item, 'condition').text = 'new'
+                elif 'refurbished' in original_condition or 'reacondicionado' in original_condition:
+                    ET.SubElement(fb_item, 'condition').text = 'refurbished'
+                elif 'used' in original_condition or 'usado' in original_condition:
+                    ET.SubElement(fb_item, 'condition').text = 'used'
+                else:
+                    ET.SubElement(fb_item, 'condition').text = 'new'  # Default for medical products
+            else:
+                ET.SubElement(fb_item, 'condition').text = 'new'  # Default for medical products
             
-            # Enhanced pricing (consistent with Google feed logic)
+            # Enhanced pricing following Facebook specifications
             if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
-                # Product has a discount - use original price as main price
-                ET.SubElement(fb_item, 'price').text = f"${enhanced_data['original_price']:.2f} MXN"
-                # Add sale price element
-                ET.SubElement(fb_item, 'sale_price').text = f"${enhanced_data['sale_price']:.2f} MXN"
+                # Product has a discount - price is the regular price, sale_price is the discounted price
+                ET.SubElement(fb_item, 'price').text = f"{enhanced_data['original_price']:.2f} MXN"
+                ET.SubElement(fb_item, 'sale_price').text = f"{enhanced_data['sale_price']:.2f} MXN"
             elif enhanced_data.get('sale_price'):
-                # Product has no discount - use sale price as main price (no sale_price element)
-                ET.SubElement(fb_item, 'price').text = f"${enhanced_data['sale_price']:.2f} MXN"
+                # Product has no discount - use sale price as main price only
+                ET.SubElement(fb_item, 'price').text = f"{enhanced_data['sale_price']:.2f} MXN"
             else:
                 # No enhanced pricing - use original XML price
                 price_elem = item.find('.//g:price', self.namespaces)
                 if price_elem is not None:
                     ET.SubElement(fb_item, 'price').text = self.format_price(price_elem.text, 'facebook')
             
-            # Brand
+            # Brand (required field)
             brand_elem = item.find('.//g:brand', self.namespaces)
             if brand_elem is not None and brand_elem.text:
                 ET.SubElement(fb_item, 'brand').text = brand_elem.text
+            else:
+                ET.SubElement(fb_item, 'brand').text = 'Accu-Chek'  # Default brand
             
             # GTIN
             gtin_elem = item.find('.//g:gtin', self.namespaces)
