@@ -1,0 +1,447 @@
+name: FeedXML-MX v2.0 - Enhanced Feed Processing
+
+on:
+  # Run daily at 2 AM Mexico City time (8 AM UTC)
+  schedule:
+    - cron: '0 8 * * *'
+  
+  # Run on pushes to main branch
+  push:
+    branches: [ main ]
+  
+  # Run on pull requests
+  pull_request:
+    branches: [ main ]
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      deploy_to_pages:
+        description: 'Deploy feeds to GitHub Pages'
+        type: boolean
+        default: true
+      max_concurrent:
+        description: 'Max concurrent scrapers'
+        type: number
+        default: 3
+      verbose_logging:
+        description: 'Enable verbose logging'
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.10'
+  FEED_URL: 'https://tienda.accu-chek.com.mx/Main/FeedXML'
+
+jobs:
+  # Quality checks and testing
+  quality-checks:
+    name: Quality Checks & Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.local/share/virtualenvs
+        key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements_2025.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-python-${{ matrix.python-version }}-
+          ${{ runner.os }}-python-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_2025.txt
+        pip install -e ".[dev,security]"
+
+    - name: Install Playwright browsers
+      run: |
+        playwright install --with-deps chromium
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: 0
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements_2025.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-
+
+    - name: Lint with Ruff
+      run: |
+        ruff check . --output-format=github
+        ruff format --check .
+
+    - name: Type check with MyPy
+      run: |
+        mypy . --show-error-codes --pretty
+
+    - name: Security scan with Bandit
+      run: |
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . -f txt
+
+    - name: Dependency security check with Safety
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check
+
+    - name: Run tests with pytest
+      run: |
+        pytest --cov=feedxml_mx --cov-report=xml --cov-report=term-missing --junitxml=pytest-report.xml
+      env:
+        PYTHONPATH: .
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
+        path: |
+          pytest-report.xml
+          coverage.xml
+          bandit-report.json
+          safety-report.json
+
+  # Feed processing job
+  process-feeds:
+    name: Process Enhanced Feeds
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    timeout-minutes: 30
+    
+    # Only run feed processing on schedule, manual trigger, or main branch pushes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/requirements_2025.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_2025.txt
+
+    - name: Install and cache Playwright browsers
+      run: |
+        playwright install --with-deps chromium
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements_2025.txt') }}
+
+    - name: Create output directory
+      run: mkdir -p output
+
+    - name: Process feeds with enhanced processor
+      run: |
+        python feed_processor_2025.py \
+          --feed-url "${{ env.FEED_URL }}" \
+          --max-concurrent ${{ github.event.inputs.max_concurrent || '3' }} \
+          --timeout 30000 \
+          ${{ github.event.inputs.verbose_logging == 'true' && '--verbose' || '' }}
+      env:
+        PYTHONPATH: .
+
+    - name: Validate generated feeds
+      run: |
+        # Check if feeds were generated
+        ls -la output/
+        
+        # Validate XML structure
+        python -c "
+        import xml.etree.ElementTree as ET
+        import sys
+        
+        # Validate Google feed
+        try:
+            tree = ET.parse('output/feed_google_v2.xml')
+            root = tree.getroot()
+            items = root.findall('.//item')
+            print(f'✅ Google feed valid: {len(items)} items')
+        except Exception as e:
+            print(f'❌ Google feed invalid: {e}')
+            sys.exit(1)
+        
+        # Validate Facebook feed
+        try:
+            tree = ET.parse('output/feed_facebook_v2.xml')
+            root = tree.getroot()
+            items = root.findall('.//item')
+            print(f'✅ Facebook feed valid: {len(items)} items')
+        except Exception as e:
+            print(f'❌ Facebook feed invalid: {e}')
+            sys.exit(1)
+        "
+
+    - name: Generate processing report
+      run: |
+        python -c "
+        import json
+        from datetime import datetime
+        
+        # Read metadata
+        with open('output/metadata_v2.json', 'r') as f:
+            metadata = json.load(f)
+        
+        # Create processing report
+        report = {
+            'timestamp': datetime.now().isoformat(),
+            'github_run': '${{ github.run_number }}',
+            'commit_sha': '${{ github.sha }}',
+            'feeds_generated': True,
+            'metadata': metadata
+        }
+        
+        with open('output/processing_report.json', 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        print(f'Processing completed: {metadata[\"products_scraped\"]} products scraped')
+        "
+
+    - name: Upload feed artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: enhanced-feeds
+        path: |
+          output/feed_google_v2.xml
+          output/feed_facebook_v2.xml
+          output/metadata_v2.json
+          output/scraped_data.json
+          output/processing_report.json
+        retention-days: 30
+
+    - name: Setup Pages (if deploying)
+      if: github.event.inputs.deploy_to_pages != 'false' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      uses: actions/configure-pages@v4
+
+    - name: Build Pages content
+      if: github.event.inputs.deploy_to_pages != 'false' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      run: |
+        mkdir -p _site
+        cp output/*.xml _site/
+        cp output/*.json _site/
+        
+        # Create index page
+        cat > _site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>FeedXML-MX v2.0 - Enhanced Feeds</title>
+            <meta charset="utf-8">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                .feed-link { display: block; margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; text-decoration: none; color: #333; }
+                .feed-link:hover { background: #e5e5e5; }
+                .metadata { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .timestamp { color: #666; font-size: 0.9em; }
+            </style>
+        </head>
+        <body>
+            <h1>🚀 FeedXML-MX v2.0 - Enhanced Feeds</h1>
+            <p>AI-powered feed processor with advanced scraping and optimization</p>
+            
+            <h2>📡 Generated Feeds</h2>
+            <a href="feed_google_v2.xml" class="feed-link">
+                <strong>Google Merchant Center Feed</strong><br>
+                Enhanced with custom labels, sale prices, and product categories
+            </a>
+            <a href="feed_facebook_v2.xml" class="feed-link">
+                <strong>Facebook Catalog Feed</strong><br>
+                Enhanced with detailed descriptions, stock quantities, and additional images
+            </a>
+            
+            <h2>📊 Processing Data</h2>
+            <a href="metadata_v2.json" class="feed-link">
+                <strong>Processing Metadata</strong><br>
+                Feed generation statistics and enhancement details
+            </a>
+            <a href="scraped_data.json" class="feed-link">
+                <strong>Scraped Product Data</strong><br>
+                Enhanced product information from web scraping
+            </a>
+            <a href="processing_report.json" class="feed-link">
+                <strong>Processing Report</strong><br>
+                GitHub Actions run details and validation results
+            </a>
+            
+            <div class="metadata">
+                <div class="timestamp">Last updated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")</div>
+                <div>GitHub Run: #${{ github.run_number }}</div>
+                <div>Commit: ${{ github.sha }}</div>
+            </div>
+        </body>
+        </html>
+        EOF
+
+    - name: Upload Pages artifact
+      if: github.event.inputs.deploy_to_pages != 'false' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: _site
+
+  # Deploy to GitHub Pages
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: process-feeds
+    if: github.event.inputs.deploy_to_pages != 'false' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    
+    permissions:
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # Performance monitoring and alerts
+  performance-monitoring:
+    name: Performance Monitoring
+    runs-on: ubuntu-latest
+    needs: process-feeds
+    if: always() && needs.process-feeds.result != 'skipped'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download feed artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: enhanced-feeds
+        path: output
+
+    - name: Analyze performance metrics
+      run: |
+        python -c "
+        import json
+        import sys
+        from datetime import datetime
+        
+        # Read processing report
+        try:
+            with open('output/processing_report.json', 'r') as f:
+                report = json.load(f)
+            
+            metadata = report['metadata']
+            
+            # Performance thresholds
+            MAX_PROCESSING_TIME = 300  # 5 minutes
+            MIN_PRODUCTS = 10
+            
+            processing_time = metadata.get('processing_time', 0)
+            products_scraped = metadata.get('products_scraped', 0)
+            
+            print(f'⏱️  Processing time: {processing_time:.2f}s')
+            print(f'📦 Products scraped: {products_scraped}')
+            
+            # Check performance thresholds
+            alerts = []
+            
+            if processing_time > MAX_PROCESSING_TIME:
+                alerts.append(f'⚠️  Slow processing: {processing_time:.2f}s > {MAX_PROCESSING_TIME}s')
+            
+            if products_scraped < MIN_PRODUCTS:
+                alerts.append(f'⚠️  Low product count: {products_scraped} < {MIN_PRODUCTS}')
+            
+            if alerts:
+                print('\\n🚨 Performance Alerts:')
+                for alert in alerts:
+                    print(f'  {alert}')
+                # Don't fail the workflow for performance alerts
+            else:
+                print('✅ Performance within acceptable thresholds')
+                
+        except Exception as e:
+            print(f'❌ Error analyzing performance: {e}')
+            sys.exit(1)
+        "
+
+    - name: Create performance summary
+      if: always()
+      run: |
+        echo "## 📊 FeedXML-MX v2.0 Performance Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Workflow Run:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "output/metadata_v2.json" ]; then
+          echo "### ✅ Processing Completed Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python -c "
+          import json
+          with open('output/metadata_v2.json', 'r') as f:
+              metadata = json.load(f)
+          
+          print(f'- **Products Scraped:** {metadata.get(\"products_scraped\", 0)}')
+          print(f'- **Scraping Enabled:** {metadata.get(\"scraping_enabled\", False)}')
+          print(f'- **Source URL:** {metadata.get(\"source_url\", \"N/A\")}')
+          print(f'- **Last Update:** {metadata.get(\"last_update\", \"N/A\")}')
+          print('')
+          print('### 🔧 Enhanced Features')
+          enhancements = metadata.get('enhancements', [])
+          for enhancement in enhancements:
+              print(f'- {enhancement}')
+          " >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### ❌ Processing Failed" >> $GITHUB_STEP_SUMMARY
+          echo "No metadata file found. Check workflow logs for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+
+# Workflow permissions
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+  checks: write
+  pull-requests: write
+
+# Concurrency control
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
