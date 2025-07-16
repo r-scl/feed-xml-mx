@@ -6,6 +6,8 @@ on:
     - cron: '0 8 * * *'  # 8 UTC = 2 AM México
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:  # Permite ejecutar manualmente
     inputs:
       version:

@@ -5,6 +5,8 @@ on:
     # Run daily at 2 AM Mexico time
     - cron: '0 8 * * *'
   push:
+    branches: [ main, feature/github-actions-v2 ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
