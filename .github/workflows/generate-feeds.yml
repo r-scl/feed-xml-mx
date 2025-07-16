@@ -42,10 +42,7 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libnss3 libxss1 libasound2 libxrandr2 libatk1.0-0 libgtk-3-0 libdrm2 libxcomposite1 libxdamage1 libxfixes3
+    # System dependencies are pre-installed on Ubuntu runners
     
     - name: Install Python dependencies
       run: |
