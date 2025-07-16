@@ -2,6 +2,8 @@
 
 Procesador automatizado de feeds XML para Google Merchant Center y Facebook Catalog.
 
+![CI Status](https://github.com/r-scl/feed-xml-mx/actions/workflows/simple-feed-generator.yml/badge.svg)
+
 ## Características
 
 - 🔄 Genera feeds separados optimizados para cada plataforma
