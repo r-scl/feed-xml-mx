@@ -12,6 +12,7 @@ pydantic-core>=2.27.1  # Core validation engine
 pydantic-settings>=2.6.1  # Environment variable management
 
 # Async and Concurrency
+aiohttp>=3.10.11   # Async HTTP client
 aiofiles>=24.1.0  # Async file operations
 asyncio-throttle>=1.0.2  # Rate limiting for scraping
 
