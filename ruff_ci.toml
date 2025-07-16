@@ -1,0 +1,38 @@
+# Simplified Ruff configuration for CI/CD
+# Focus on critical errors only
+
+line-length = 120
+target-version = "py310"
+respect-gitignore = true
+
+# Exclude common directories
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "output",
+    "*.egg-info",
+]
+
+[lint]
+# Enable only critical rule sets for CI
+select = [
+    "F",    # Pyflakes (critical errors)
+    "E",    # pycodestyle errors
+    "I",    # isort (import sorting)
+]
+
+ignore = [
+    "E501", # Line length (handled by formatter)
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

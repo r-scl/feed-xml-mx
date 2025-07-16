@@ -4,16 +4,16 @@ FeedXML-MX v2.0 - Enhanced Feed Processor with Web Scraping
 Combines XML feed data with scraped product information for complete feeds
 """
 
-import xml.etree.ElementTree as ET
-import requests
-import re
-import json
-import os
 import asyncio
-from datetime import datetime
-from urllib.parse import urlparse, urlunparse
-from typing import Dict, List, Optional, Any
+import json
 import logging
+import os
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from typing import Any, Dict, List
+
+import requests
 
 from product_scraper import ProductScraper, ScrapedProductData
 
@@ -24,448 +24,447 @@ logger = logging.getLogger(__name__)
 
 class EnhancedFeedProcessor:
     """Enhanced feed processor with web scraping capabilities"""
-    
+
     def __init__(self, feed_url: str, enable_scraping: bool = True, max_concurrent_scrapes: int = 3):
         self.feed_url = feed_url
         self.enable_scraping = enable_scraping
         self.max_concurrent_scrapes = max_concurrent_scrapes
-        self.namespaces = {
-            'g': 'http://base.google.com/ns/1.0'
-        }
+        self.namespaces = {"g": "http://base.google.com/ns/1.0"}
         self.scraped_data: Dict[str, ScrapedProductData] = {}
-        
+
     def fetch_feed(self):
         """Download the original XML feed"""
         logger.info(f"Fetching XML feed from: {self.feed_url}")
         response = requests.get(self.feed_url)
         response.raise_for_status()
         return response.text
-    
+
     def extract_product_urls(self, root) -> List[tuple]:
         """Extract product URLs and IDs from XML feed"""
         product_urls = []
-        channel = root.find('channel')
-        items = channel.findall('item')
-        
+        channel = root.find("channel")
+        items = channel.findall("item")
+
         for item in items:
             # Get product ID and URL
-            id_elem = item.find('.//g:id', self.namespaces)
-            link_elem = item.find('.//g:link', self.namespaces)
-            
+            id_elem = item.find(".//g:id", self.namespaces)
+            link_elem = item.find(".//g:link", self.namespaces)
+
             if id_elem is not None and link_elem is not None:
                 product_id = id_elem.text
                 product_url = link_elem.text
                 product_urls.append((product_url, product_id))
-        
+
         logger.info(f"Found {len(product_urls)} products to potentially scrape")
         return product_urls
-    
+
     async def scrape_product_data(self, product_urls: List[tuple]) -> Dict[str, ScrapedProductData]:
         """Scrape additional data from product pages"""
         if not self.enable_scraping:
             logger.info("Scraping disabled, using XML data only")
             return {}
-        
+
         logger.info(f"Starting scraping of {len(product_urls)} products...")
-        
+
         async with ProductScraper(headless=True) as scraper:
             scraped_data = await scraper.scrape_multiple_products(product_urls)
-        
+
         logger.info(f"Successfully scraped {len(scraped_data)} products")
         return scraped_data
-    
+
     def clean_url(self, url):
         """Clean URLs by removing product title suffixes"""
-        match = re.match(r'(https://tienda\.accu-chek\.com\.mx/Main/Producto/\d+/).*', url)
+        match = re.match(r"(https://tienda\.accu-chek\.com\.mx/Main/Producto/\d+/).*", url)
         if match:
             return match.group(1)
         return url
-    
-    def format_price(self, price, platform='both'):
+
+    def format_price(self, price, platform="both"):
         """Format price according to platform requirements"""
-        price_match = re.match(r'(\d+\.?\d*)\s*MXN', price)
+        price_match = re.match(r"(\d+\.?\d*)\s*MXN", price)
         if price_match:
             price_value = float(price_match.group(1))
-            if platform == 'facebook':
-                return f"${price_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            if platform == "facebook":
+                return f"${price_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             else:
                 return f"{price_value:.2f} MXN"
         return price
-    
+
     def get_enhanced_product_data(self, item, product_id: str) -> Dict[str, Any]:
         """Get enhanced product data combining XML and scraped data"""
         enhanced_data = {}
-        
+
         # Get scraped data if available
         scraped = self.scraped_data.get(product_id)
-        
+
         if scraped:
-            enhanced_data.update({
-                'original_price': scraped.original_price,
-                'sale_price': scraped.sale_price,
-                'discount_percentage': scraped.discount_percentage,
-                'promotion_text': scraped.promotion_text,
-                'stock_quantity': scraped.stock_quantity,
-                'sku': scraped.sku,
-                'detailed_description': scraped.detailed_description,
-                'features': scraped.features,
-                'included_items': scraped.included_items,
-                'additional_images': scraped.additional_images
-            })
-        
+            enhanced_data.update(
+                {
+                    "original_price": scraped.original_price,
+                    "sale_price": scraped.sale_price,
+                    "discount_percentage": scraped.discount_percentage,
+                    "promotion_text": scraped.promotion_text,
+                    "stock_quantity": scraped.stock_quantity,
+                    "sku": scraped.sku,
+                    "detailed_description": scraped.detailed_description,
+                    "features": scraped.features,
+                    "included_items": scraped.included_items,
+                    "additional_images": scraped.additional_images,
+                }
+            )
+
         return enhanced_data
-    
+
     def add_custom_labels(self, item, title: str, enhanced_data: Dict) -> None:
         """Add custom labels for campaign segmentation"""
         # Label by product type
-        if 'kit' in title.lower() or 'promo pack' in title.lower():
-            ET.SubElement(item, 'g:custom_label_0').text = 'kit_producto'
-        elif 'tiras reactivas' in title.lower():
-            ET.SubElement(item, 'g:custom_label_0').text = 'tiras_reactivas'
-        elif 'lancetas' in title.lower():
-            ET.SubElement(item, 'g:custom_label_0').text = 'lancetas'
-        elif 'glucómetro' in title.lower() or 'medidor' in title.lower():
-            ET.SubElement(item, 'g:custom_label_0').text = 'glucometro'
-        
+        if "kit" in title.lower() or "promo pack" in title.lower():
+            ET.SubElement(item, "g:custom_label_0").text = "kit_producto"
+        elif "tiras reactivas" in title.lower():
+            ET.SubElement(item, "g:custom_label_0").text = "tiras_reactivas"
+        elif "lancetas" in title.lower():
+            ET.SubElement(item, "g:custom_label_0").text = "lancetas"
+        elif "glucómetro" in title.lower() or "medidor" in title.lower():
+            ET.SubElement(item, "g:custom_label_0").text = "glucometro"
+
         # Label by price range (using sale price if available)
-        price = enhanced_data.get('sale_price')
+        price = enhanced_data.get("sale_price")
         if price:
             if price > 1000:
-                ET.SubElement(item, 'g:custom_label_1').text = 'premium'
+                ET.SubElement(item, "g:custom_label_1").text = "premium"
             elif price > 500:
-                ET.SubElement(item, 'g:custom_label_1').text = 'mid_range'
+                ET.SubElement(item, "g:custom_label_1").text = "mid_range"
             else:
-                ET.SubElement(item, 'g:custom_label_1').text = 'economico'
-        
+                ET.SubElement(item, "g:custom_label_1").text = "economico"
+
         # Label promotions
-        if enhanced_data.get('discount_percentage'):
-            ET.SubElement(item, 'g:custom_label_2').text = 'en_promocion'
-        
+        if enhanced_data.get("discount_percentage"):
+            ET.SubElement(item, "g:custom_label_2").text = "en_promocion"
+
         # Label by availability
-        if enhanced_data.get('stock_quantity'):
-            if enhanced_data['stock_quantity'] > 50:
-                ET.SubElement(item, 'g:custom_label_3').text = 'alto_stock'
-            elif enhanced_data['stock_quantity'] > 10:
-                ET.SubElement(item, 'g:custom_label_3').text = 'stock_medio'
+        if enhanced_data.get("stock_quantity"):
+            if enhanced_data["stock_quantity"] > 50:
+                ET.SubElement(item, "g:custom_label_3").text = "alto_stock"
+            elif enhanced_data["stock_quantity"] > 10:
+                ET.SubElement(item, "g:custom_label_3").text = "stock_medio"
             else:
-                ET.SubElement(item, 'g:custom_label_3').text = 'stock_bajo'
-    
+                ET.SubElement(item, "g:custom_label_3").text = "stock_bajo"
+
     def process_feed_google(self, root):
         """Process feed for Google Merchant Center with enhancements"""
         google_root = ET.fromstring(ET.tostring(root))
-        channel = google_root.find('channel')
-        items = channel.findall('item')
-        
+        channel = google_root.find("channel")
+        items = channel.findall("item")
+
         for item in items:
             # Get product ID
-            id_elem = item.find('.//g:id', self.namespaces)
+            id_elem = item.find(".//g:id", self.namespaces)
             if id_elem is None:
                 continue
-                
+
             product_id = id_elem.text
             enhanced_data = self.get_enhanced_product_data(item, product_id)
-            
+
             # Clean URL
-            link_elem = item.find('.//g:link', self.namespaces)
+            link_elem = item.find(".//g:link", self.namespaces)
             if link_elem is not None and link_elem.text:
                 link_elem.text = self.clean_url(link_elem.text)
-            
+
             # Enhanced pricing with sale price support
-            price_elem = item.find('.//g:price', self.namespaces)
+            price_elem = item.find(".//g:price", self.namespaces)
             if price_elem is not None and price_elem.text:
-                if enhanced_data.get('sale_price'):
+                if enhanced_data.get("sale_price"):
                     # Update with current sale price
                     price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
                 else:
                     # Format existing price
-                    price_elem.text = self.format_price(price_elem.text, 'google')
-            
+                    price_elem.text = self.format_price(price_elem.text, "google")
+
             # Add sale price if available
-            if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
-                if enhanced_data['original_price'] > enhanced_data['sale_price']:
-                    sale_price_elem = ET.SubElement(item, 'g:sale_price')
+            if enhanced_data.get("original_price") and enhanced_data.get("sale_price"):
+                if enhanced_data["original_price"] > enhanced_data["sale_price"]:
+                    sale_price_elem = ET.SubElement(item, "g:sale_price")
                     sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
-            
+
             # Add enhanced availability with stock quantity
-            availability_elem = item.find('.//g:availability', self.namespaces)
-            if availability_elem is not None and enhanced_data.get('stock_quantity') is not None:
-                if enhanced_data['stock_quantity'] > 0:
-                    availability_elem.text = 'in stock'
+            availability_elem = item.find(".//g:availability", self.namespaces)
+            if availability_elem is not None and enhanced_data.get("stock_quantity") is not None:
+                if enhanced_data["stock_quantity"] > 0:
+                    availability_elem.text = "in stock"
                 else:
-                    availability_elem.text = 'out of stock'
-            
+                    availability_elem.text = "out of stock"
+
             # Add MPn (SKU) if available
-            if enhanced_data.get('sku'):
-                mpn_elem = ET.SubElement(item, 'g:mpn')
-                mpn_elem.text = enhanced_data['sku']
-            
+            if enhanced_data.get("sku"):
+                mpn_elem = ET.SubElement(item, "g:mpn")
+                mpn_elem.text = enhanced_data["sku"]
+
             # Add Google product category for diabetes care products
-            google_category_elem = ET.SubElement(item, 'g:google_product_category')
-            google_category_elem.text = '491'  # Health & Beauty > Health Care > Diabetes Care
-            
+            google_category_elem = ET.SubElement(item, "g:google_product_category")
+            google_category_elem.text = "491"  # Health & Beauty > Health Care > Diabetes Care
+
             # Add custom labels for campaign optimization
-            title_elem = item.find('.//g:title', self.namespaces)
+            title_elem = item.find(".//g:title", self.namespaces)
             if title_elem is not None:
                 self.add_custom_labels(item, title_elem.text, enhanced_data)
-            
+
             # Add additional images for Google (up to 10 additional images)
-            if enhanced_data.get('additional_images'):
-                for i, img_url in enumerate(enhanced_data['additional_images'][:10]):
-                    additional_img_elem = ET.SubElement(item, 'g:additional_image_link')
+            if enhanced_data.get("additional_images"):
+                for i, img_url in enumerate(enhanced_data["additional_images"][:10]):
+                    additional_img_elem = ET.SubElement(item, "g:additional_image_link")
                     additional_img_elem.text = img_url
-            
+
             # Enhanced description
-            desc_elem = item.find('.//g:description', self.namespaces)
-            if desc_elem is not None and enhanced_data.get('detailed_description'):
+            desc_elem = item.find(".//g:description", self.namespaces)
+            if desc_elem is not None and enhanced_data.get("detailed_description"):
                 # Use detailed description but keep it concise for Google
-                detailed_desc = enhanced_data['detailed_description'][:500]
-                if not detailed_desc.endswith('.'):
-                    detailed_desc += '.'
+                detailed_desc = enhanced_data["detailed_description"][:500]
+                if not detailed_desc.endswith("."):
+                    detailed_desc += "."
                 desc_elem.text = detailed_desc
-        
+
         return google_root
-    
+
     def process_feed_facebook(self, root):
         """Process feed for Facebook Catalog with enhancements"""
-        fb_root = ET.Element('rss', version='2.0')
-        fb_channel = ET.SubElement(fb_root, 'channel')
-        
+        fb_root = ET.Element("rss", version="2.0")
+        fb_channel = ET.SubElement(fb_root, "channel")
+
         # Channel information
-        channel = root.find('channel')
-        ET.SubElement(fb_channel, 'title').text = 'Tienda Accuchek Mexico'
-        ET.SubElement(fb_channel, 'link').text = 'https://tienda.accu-chek.com.mx'
-        ET.SubElement(fb_channel, 'description').text = 'Productos Accu-Chek para el cuidado de la diabetes'
-        
+        channel = root.find("channel")
+        ET.SubElement(fb_channel, "title").text = "Tienda Accuchek Mexico"
+        ET.SubElement(fb_channel, "link").text = "https://tienda.accu-chek.com.mx"
+        ET.SubElement(fb_channel, "description").text = "Productos Accu-Chek para el cuidado de la diabetes"
+
         # Process items
-        items = channel.findall('item')
+        items = channel.findall("item")
         for item in items:
-            fb_item = ET.SubElement(fb_channel, 'item')
-            
+            fb_item = ET.SubElement(fb_channel, "item")
+
             # Get product ID
-            id_elem = item.find('.//g:id', self.namespaces)
+            id_elem = item.find(".//g:id", self.namespaces)
             if id_elem is None:
                 continue
-                
+
             product_id = id_elem.text
             enhanced_data = self.get_enhanced_product_data(item, product_id)
-            
+
             # Required fields for Facebook
-            ET.SubElement(fb_item, 'id').text = product_id
-            
+            ET.SubElement(fb_item, "id").text = product_id
+
             # Title
-            title_elem = item.find('.//g:title', self.namespaces)
+            title_elem = item.find(".//g:title", self.namespaces)
             if title_elem is not None:
-                ET.SubElement(fb_item, 'title').text = title_elem.text
-            
+                ET.SubElement(fb_item, "title").text = title_elem.text
+
             # Enhanced description for Facebook
             desc_text = ""
-            if enhanced_data.get('detailed_description'):
-                desc_text = enhanced_data['detailed_description']
+            if enhanced_data.get("detailed_description"):
+                desc_text = enhanced_data["detailed_description"]
             else:
-                title_elem = item.find('.//g:title', self.namespaces)
+                title_elem = item.find(".//g:title", self.namespaces)
                 if title_elem is not None:
                     desc_text = title_elem.text
-            
-            if not desc_text.endswith('.'):
-                desc_text += '.'
-            ET.SubElement(fb_item, 'description').text = desc_text
-            
+
+            if not desc_text.endswith("."):
+                desc_text += "."
+            ET.SubElement(fb_item, "description").text = desc_text
+
             # URL
-            link_elem = item.find('.//g:link', self.namespaces)
+            link_elem = item.find(".//g:link", self.namespaces)
             if link_elem is not None:
-                ET.SubElement(fb_item, 'link').text = self.clean_url(link_elem.text)
-            
+                ET.SubElement(fb_item, "link").text = self.clean_url(link_elem.text)
+
             # Image
-            image_elem = item.find('.//g:image_link', self.namespaces)
+            image_elem = item.find(".//g:image_link", self.namespaces)
             if image_elem is not None:
-                ET.SubElement(fb_item, 'image_link').text = image_elem.text
-            
+                ET.SubElement(fb_item, "image_link").text = image_elem.text
+
             # Enhanced availability with stock
-            avail_elem = item.find('.//g:availability', self.namespaces)
+            avail_elem = item.find(".//g:availability", self.namespaces)
             if avail_elem is not None:
-                if enhanced_data.get('stock_quantity') is not None:
-                    if enhanced_data['stock_quantity'] > 0:
-                        ET.SubElement(fb_item, 'availability').text = 'in stock'
+                if enhanced_data.get("stock_quantity") is not None:
+                    if enhanced_data["stock_quantity"] > 0:
+                        ET.SubElement(fb_item, "availability").text = "in stock"
                         # Add quantity for Facebook checkout
-                        ET.SubElement(fb_item, 'quantity').text = str(enhanced_data['stock_quantity'])
+                        ET.SubElement(fb_item, "quantity").text = str(enhanced_data["stock_quantity"])
                     else:
-                        ET.SubElement(fb_item, 'availability').text = 'out of stock'
+                        ET.SubElement(fb_item, "availability").text = "out of stock"
                 else:
-                    ET.SubElement(fb_item, 'availability').text = avail_elem.text
-            
+                    ET.SubElement(fb_item, "availability").text = avail_elem.text
+
             # Condition
-            cond_elem = item.find('.//g:condition', self.namespaces)
+            cond_elem = item.find(".//g:condition", self.namespaces)
             if cond_elem is not None:
-                ET.SubElement(fb_item, 'condition').text = cond_elem.text
-            
+                ET.SubElement(fb_item, "condition").text = cond_elem.text
+
             # Enhanced pricing
-            if enhanced_data.get('sale_price'):
+            if enhanced_data.get("sale_price"):
                 # Use scraped sale price
-                ET.SubElement(fb_item, 'price').text = f"${enhanced_data['sale_price']:.2f} MXN"
-                
+                ET.SubElement(fb_item, "price").text = f"${enhanced_data['sale_price']:.2f} MXN"
+
                 # Add sale price if there's a discount
-                if enhanced_data.get('original_price') and enhanced_data['original_price'] > enhanced_data['sale_price']:
-                    ET.SubElement(fb_item, 'sale_price').text = f"${enhanced_data['sale_price']:.2f} MXN"
+                if (
+                    enhanced_data.get("original_price")
+                    and enhanced_data["original_price"] > enhanced_data["sale_price"]
+                ):
+                    ET.SubElement(fb_item, "sale_price").text = f"${enhanced_data['sale_price']:.2f} MXN"
             else:
                 # Use original XML price
-                price_elem = item.find('.//g:price', self.namespaces)
+                price_elem = item.find(".//g:price", self.namespaces)
                 if price_elem is not None:
-                    ET.SubElement(fb_item, 'price').text = self.format_price(price_elem.text, 'facebook')
-            
+                    ET.SubElement(fb_item, "price").text = self.format_price(price_elem.text, "facebook")
+
             # Brand
-            brand_elem = item.find('.//g:brand', self.namespaces)
+            brand_elem = item.find(".//g:brand", self.namespaces)
             if brand_elem is not None and brand_elem.text:
-                ET.SubElement(fb_item, 'brand').text = brand_elem.text
-            
+                ET.SubElement(fb_item, "brand").text = brand_elem.text
+
             # GTIN
-            gtin_elem = item.find('.//g:gtin', self.namespaces)
+            gtin_elem = item.find(".//g:gtin", self.namespaces)
             if gtin_elem is not None:
-                ET.SubElement(fb_item, 'gtin').text = gtin_elem.text
-            
+                ET.SubElement(fb_item, "gtin").text = gtin_elem.text
+
             # Add MPN if available from scraping
-            if enhanced_data.get('sku'):
-                ET.SubElement(fb_item, 'mpn').text = enhanced_data['sku']
-            
+            if enhanced_data.get("sku"):
+                ET.SubElement(fb_item, "mpn").text = enhanced_data["sku"]
+
             # Add additional images for Facebook (up to 10 additional images)
-            if enhanced_data.get('additional_images'):
-                for i, img_url in enumerate(enhanced_data['additional_images'][:10]):
-                    additional_img_elem = ET.SubElement(fb_item, 'additional_image_link')
+            if enhanced_data.get("additional_images"):
+                for i, img_url in enumerate(enhanced_data["additional_images"][:10]):
+                    additional_img_elem = ET.SubElement(fb_item, "additional_image_link")
                     additional_img_elem.text = img_url
-        
+
         return fb_root
-    
+
     async def process_feeds(self):
         """Main processing function with scraping integration"""
         logger.info("Starting enhanced feed processing...")
-        
+
         # Get original XML feed
         xml_content = self.fetch_feed()
         root = ET.fromstring(xml_content)
-        
+
         # Extract product URLs for scraping
         product_urls = self.extract_product_urls(root)
-        
+
         # Scrape additional product data
         if self.enable_scraping:
             self.scraped_data = await self.scrape_product_data(product_urls)
-        
+
         # Process feeds with enhanced data
         logger.info("Processing Google Merchant feed...")
         google_root = self.process_feed_google(root)
-        
+
         logger.info("Processing Facebook Catalog feed...")
         facebook_root = self.process_feed_facebook(root)
-        
+
         return google_root, facebook_root
-    
-    def save_feed(self, root, output_file, platform='google'):
+
+    def save_feed(self, root, output_file, platform="google"):
         """Save processed feed to file"""
-        if platform == 'google':
-            ET.register_namespace('g', 'http://base.google.com/ns/1.0')
-        
+        if platform == "google":
+            ET.register_namespace("g", "http://base.google.com/ns/1.0")
+
         tree = ET.ElementTree(root)
-        tree.write(output_file, encoding='utf-8', xml_declaration=True)
-        
+        tree.write(output_file, encoding="utf-8", xml_declaration=True)
+
         # Format the file
-        with open(output_file, 'r', encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             content = f.read()
-        
-        if '<?xml' not in content:
+
+        if "<?xml" not in content:
             formatted_content = '<?xml version="1.0" encoding="UTF-8"?>\n' + content
         else:
             formatted_content = content
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
+
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(formatted_content)
-        
+
         return output_file
-    
-    def save_scraped_data(self, output_file='output/scraped_data.json'):
+
+    def save_scraped_data(self, output_file="output/scraped_data.json"):
         """Save scraped data for analysis and caching"""
         scraped_dict = {}
         for product_id, data in self.scraped_data.items():
             scraped_dict[product_id] = {
-                'product_id': data.product_id,
-                'sku': data.sku,
-                'original_price': data.original_price,
-                'sale_price': data.sale_price,
-                'discount_percentage': data.discount_percentage,
-                'promotion_text': data.promotion_text,
-                'stock_quantity': data.stock_quantity,
-                'last_updated': data.last_updated
+                "product_id": data.product_id,
+                "sku": data.sku,
+                "original_price": data.original_price,
+                "sale_price": data.sale_price,
+                "discount_percentage": data.discount_percentage,
+                "promotion_text": data.promotion_text,
+                "stock_quantity": data.stock_quantity,
+                "last_updated": data.last_updated,
             }
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
+
+        with open(output_file, "w", encoding="utf-8") as f:
             json.dump(scraped_dict, f, indent=2, ensure_ascii=False)
-        
+
         logger.info(f"Scraped data saved to {output_file}")
 
 
 async def main():
     """Main execution function"""
-    feed_url = 'https://tienda.accu-chek.com.mx/Main/FeedXML'
-    
+    feed_url = "https://tienda.accu-chek.com.mx/Main/FeedXML"
+
     # Check for environment variable to control scraping
-    enable_scraping = os.getenv('ENABLE_SCRAPING', 'true').lower() == 'true'
-    
+    enable_scraping = os.getenv("ENABLE_SCRAPING", "true").lower() == "true"
+
     print("🚀 FeedXML-MX v2.0 - Enhanced Feed Processor")
     print(f"📡 Fetching feed from: {feed_url}")
     print(f"🔧 Scraping enabled: {enable_scraping}")
-    
+
     # Create processor with configurable scraping
-    processor = EnhancedFeedProcessor(
-        feed_url=feed_url,
-        enable_scraping=enable_scraping,
-        max_concurrent_scrapes=3
-    )
-    
+    processor = EnhancedFeedProcessor(feed_url=feed_url, enable_scraping=enable_scraping, max_concurrent_scrapes=3)
+
     try:
         # Process feeds with enhanced data
         google_root, facebook_root = await processor.process_feeds()
-        
+
         # Create output directory
-        os.makedirs('output', exist_ok=True)
-        
+        os.makedirs("output", exist_ok=True)
+
         # Save enhanced feeds
-        google_file = processor.save_feed(google_root, 'output/feed_google_v2.xml', 'google')
-        print(f"\n✅ Enhanced Google Merchant feed saved!")
+        google_file = processor.save_feed(google_root, "output/feed_google_v2.xml", "google")
+        print("\n✅ Enhanced Google Merchant feed saved!")
         print(f"📄 File: {google_file}")
-        
-        facebook_file = processor.save_feed(facebook_root, 'output/feed_facebook_v2.xml', 'facebook')
-        print(f"\n✅ Enhanced Facebook Catalog feed saved!")
+
+        facebook_file = processor.save_feed(facebook_root, "output/feed_facebook_v2.xml", "facebook")
+        print("\n✅ Enhanced Facebook Catalog feed saved!")
         print(f"📄 File: {facebook_file}")
-        
+
         # Save scraped data
         processor.save_scraped_data()
-        
+
         # Save metadata
         metadata = {
-            'version': '2.0',
-            'last_update': datetime.now().isoformat(),
-            'source_url': feed_url,
-            'scraping_enabled': processor.enable_scraping,
-            'products_scraped': len(processor.scraped_data),
-            'google_feed': google_file,
-            'facebook_feed': facebook_file,
-            'enhancements': [
-                'Sale price detection',
-                'Stock quantity tracking',
-                'Custom labels for campaigns',
-                'Enhanced descriptions',
-                'Google product categories',
-                'MPN/SKU support'
-            ]
+            "version": "2.0",
+            "last_update": datetime.now().isoformat(),
+            "source_url": feed_url,
+            "scraping_enabled": processor.enable_scraping,
+            "products_scraped": len(processor.scraped_data),
+            "google_feed": google_file,
+            "facebook_feed": facebook_file,
+            "enhancements": [
+                "Sale price detection",
+                "Stock quantity tracking",
+                "Custom labels for campaigns",
+                "Enhanced descriptions",
+                "Google product categories",
+                "MPN/SKU support",
+            ],
         }
-        
-        with open('output/metadata_v2.json', 'w', encoding='utf-8') as f:
+
+        with open("output/metadata_v2.json", "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-        
-        print(f"\n📊 Processing Summary:")
+
+        print("\n📊 Processing Summary:")
         print(f"- Products scraped: {len(processor.scraped_data)}")
         print(f"- Enhanced features: {len(metadata['enhancements'])}")
-        print(f"- Google feed: Enhanced with custom labels and sale prices")
-        print(f"- Facebook feed: Enhanced with stock quantities and detailed descriptions")
-        
+        print("- Google feed: Enhanced with custom labels and sale prices")
+        print("- Facebook feed: Enhanced with stock quantities and detailed descriptions")
+
     except Exception as e:
         logger.error(f"Error processing feeds: {e}")
         raise
