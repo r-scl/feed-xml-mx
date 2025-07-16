@@ -533,6 +533,77 @@ class EnhancedProductScraper:
         # Default to None (unknown stock)
         return None
     
+    def _is_error_page(self, page_content: str, product_url: str) -> bool:
+        """Check if the page content indicates an error or invalid product"""
+        try:
+            # Convert to lowercase for easier matching
+            content_lower = page_content.lower()
+            
+            # Common error indicators in Spanish and English
+            error_indicators = [
+                'error 404',
+                'página no encontrada',
+                'page not found',
+                'producto no encontrado',
+                'product not found',
+                'error interno',
+                'internal server error',
+                'error 500',
+                'página no disponible',
+                'page not available',
+                'acceso denegado',
+                'access denied',
+                'el producto no existe',
+                'the product does not exist',
+                'no se pudo encontrar',
+                'could not be found',
+                'página temporalmente no disponible',
+                'temporarily unavailable'
+            ]
+            
+            # Check for error indicators
+            for indicator in error_indicators:
+                if indicator in content_lower:
+                    logger.info(f"Found error indicator '{indicator}' in {product_url}")
+                    return True
+            
+            # Check if page has minimal content (likely error page)
+            soup = BeautifulSoup(page_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
+            
+            # Get text content
+            text_content = soup.get_text()
+            
+            # If page has very little content, it's likely an error page
+            if len(text_content.strip()) < 500:
+                logger.info(f"Page has minimal content ({len(text_content)} chars) - likely error page: {product_url}")
+                return True
+            
+            # Check for specific Accu-Chek error patterns
+            if 'accu-chek' not in content_lower and 'roche' not in content_lower:
+                # If the page doesn't contain brand references, it might be an error page
+                title_tag = soup.find('title')
+                if title_tag and ('error' in title_tag.text.lower() or 'not found' in title_tag.text.lower()):
+                    logger.info(f"Title indicates error page: {title_tag.text} for {product_url}")
+                    return True
+            
+            # Check if dataProd object is missing (indicates invalid product page)
+            data_prod = self.extract_dataproj_info(page_content)
+            if not data_prod:
+                # If we can't find the product data object, it might be an error page
+                # But let's be more specific - check if it's actually a product page
+                if '/Producto/' in product_url and 'producto' not in content_lower:
+                    logger.info(f"Product URL but no product content found: {product_url}")
+                    return True
+            
+        except Exception as e:
+            logger.warning(f"Error checking if page is error page: {e}")
+        
+        return False
+    
     async def scrape_product(self, product_url: str, product_id: str) -> Optional[ScrapedProductData]:
         """Scrape a single product page with enhanced extraction"""
         try:
@@ -540,14 +611,25 @@ class EnhancedProductScraper:
             
             page = await self.create_page()
             
-            # Navigate to product page
-            await page.goto(product_url, timeout=self.timeout)
+            # Navigate to product page and check for errors
+            response = await page.goto(product_url, timeout=self.timeout)
+            
+            # Check if page loaded successfully
+            if response.status >= 400:
+                logger.warning(f"Product {product_id} returned HTTP {response.status} - skipping")
+                await page.close()
+                return None
             
             # Wait for content to load
             await page.wait_for_load_state('networkidle', timeout=10000)
             
-            # Get page content
+            # Get page content and check for error indicators
             page_content = await page.content()
+            if self._is_error_page(page_content, product_url):
+                logger.warning(f"Product {product_id} appears to be an error page - skipping")
+                await page.close()
+                return None
+            
             soup = BeautifulSoup(page_content, 'html.parser')
             
             # Extract product title

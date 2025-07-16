@@ -159,13 +159,24 @@ class EnhancedFeedProcessor:
         channel = google_root.find('channel')
         items = channel.findall('item')
         
+        # Create list to track items to remove
+        items_to_remove = []
+        
         for item in items:
             # Get product ID
             id_elem = item.find('.//g:id', self.namespaces)
             if id_elem is None:
+                items_to_remove.append(item)
                 continue
                 
             product_id = id_elem.text
+            
+            # Check if product should be excluded (failed to scrape or error page)
+            if self.enable_scraping and product_id not in self.scraped_data:
+                logger.info(f"Excluding product {product_id} from Google feed - failed to scrape or error page")
+                items_to_remove.append(item)
+                continue
+                
             enhanced_data = self.get_enhanced_product_data(item, product_id)
             
             # Clean URL
@@ -231,6 +242,12 @@ class EnhancedFeedProcessor:
                         img_elem = ET.SubElement(item, 'g:additional_image_link')
                         img_elem.text = img_url
         
+        # Remove items that failed validation or scraping
+        for item in items_to_remove:
+            channel.remove(item)
+        
+        logger.info(f"Google feed: excluded {len(items_to_remove)} invalid products, included {len(items) - len(items_to_remove)} valid products")
+        
         return google_root
     
     def process_feed_facebook(self, root):
@@ -246,15 +263,28 @@ class EnhancedFeedProcessor:
         
         # Process items
         items = channel.findall('item')
+        valid_products = 0
+        excluded_products = 0
+        
         for item in items:
-            fb_item = ET.SubElement(fb_channel, 'item')
-            
             # Get product ID
             id_elem = item.find('.//g:id', self.namespaces)
             if id_elem is None:
+                excluded_products += 1
                 continue
                 
             product_id = id_elem.text
+            
+            # Check if product should be excluded (failed to scrape or error page)
+            if self.enable_scraping and product_id not in self.scraped_data:
+                logger.info(f"Excluding product {product_id} from Facebook feed - failed to scrape or error page")
+                excluded_products += 1
+                continue
+            
+            # Create Facebook item only for valid products
+            fb_item = ET.SubElement(fb_channel, 'item')
+            valid_products += 1
+                
             enhanced_data = self.get_enhanced_product_data(item, product_id)
             
             # Required fields for Facebook
@@ -343,6 +373,8 @@ class EnhancedFeedProcessor:
                     # Don't duplicate the main image
                     if img_url != main_image_url:
                         ET.SubElement(fb_item, 'additional_image_link').text = img_url
+        
+        logger.info(f"Facebook feed: excluded {excluded_products} invalid products, included {valid_products} valid products")
         
         return fb_root
     
