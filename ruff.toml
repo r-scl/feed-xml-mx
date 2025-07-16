@@ -1,0 +1,149 @@
+# Ruff configuration for FeedXML-MX v2.0
+# Fast Python linter and code formatter
+
+line-length = 120
+target-version = "py310"
+
+[lint]
+# Enable comprehensive rule sets for 2025 best practices
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # flake8-comprehensions
+    "C4",
+    # flake8-bandit (security)
+    "S",
+    # flake8-async
+    "ASYNC",
+    # flake8-trio
+    "TRIO",
+    # flake8-logging-format
+    "G",
+    # flake8-pie
+    "PIE",
+    # flake8-self
+    "SLF",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # pylint
+    "PL",
+    # ruff-specific rules
+    "RUF",
+    # flake8-annotations
+    "ANN",
+    # flake8-async
+    "ASYNC",
+    # flake8-return
+    "RET",
+]
+
+ignore = [
+    # Line length handled by formatter
+    "E501",
+    # Allow assert in non-test files (used for validation)
+    "S101",
+    # Allow print statements (for CLI output)
+    "T201",
+    # Too many arguments (common in config classes)
+    "PLR0913",
+    # Too many branches (acceptable for complex logic)
+    "PLR0912",
+    # Too many statements (acceptable for main functions)
+    "PLR0915",
+    # Magic value comparison (acceptable for thresholds)
+    "PLR2004",
+    # Subprocess without shell=True (we control all inputs)
+    "S603",
+    # Missing type annotation for self/cls
+    "ANN101", "ANN102",
+    # Missing return type annotation for special methods
+    "ANN204",
+]
+
+# Per-file ignores
+[lint.per-file-ignores]
+"test_*.py" = [
+    "S101",     # assert statements are ok in tests
+    "PLR2004",  # magic values are ok in tests
+    "ARG001",   # unused function arguments (test fixtures)
+    "S105",     # hardcoded passwords in tests
+    "S106",     # hardcoded passwords in tests
+]
+"**/tests/**" = [
+    "S101", "PLR2004", "ARG001", "S105", "S106"
+]
+"examples/*.py" = [
+    "T201",     # print statements ok in examples
+    "S101",     # assert statements ok in examples
+]
+"scripts/*.py" = [
+    "T201",     # print statements ok in scripts
+]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
+
+[lint.flake8-bandit]
+check-typed-exception = true
+
+[lint.isort]
+known-first-party = ["feedxml_mx"]
+force-single-line = false
+combine-as-imports = true
+split-on-trailing-comma = true
+
+[lint.pylint]
+max-args = 10
+max-branches = 15
+max-returns = 8
+max-statements = 60
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-source-first-line = false
+line-ending = "auto"
+
+# Respect gitignore
+respect-gitignore = true
+
+# Exclude common directories
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "output",
+    "*.egg-info",
+]
