@@ -5,27 +5,17 @@ High-performance async scraping with advanced concurrency control
 """
 
 import asyncio
-import aiofiles
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set, Union, AsyncGenerator
+from typing import Dict, List, Optional, AsyncGenerator
 from urllib.parse import urljoin
 
 import structlog
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from bs4 import BeautifulSoup
-from asyncio_throttle import Throttler
 
 from models import ScrapedProductData, ScrapingConfig
-from error_handling import (
-    ScrapingError, 
-    NetworkError, 
-    handle_async_errors, 
-    ErrorContext,
-    ErrorSeverity
-)
+from error_handling import ScrapingError, NetworkError, handle_async_errors
 
 
 logger = structlog.get_logger(__name__)
@@ -81,11 +71,9 @@ class OptimizedProductScraper:
         self.failed_urls: Set[str] = set()
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
-        self.throttler = Throttler(rate_limit=config.max_concurrent_requests, period=1.0)
-        
-        # Performance optimizations
+        # Simple rate limiting with semaphore
         self._semaphore = asyncio.Semaphore(config.max_concurrent_requests)
-        self._session_timeout = aiofiles.os.getenv('SESSION_TIMEOUT', 300)  # 5 minutes
+        self._session_timeout = 300  # 5 minutes
         
     @asynccontextmanager
     async def _browser_session(self) -> AsyncGenerator[Browser, None]:
@@ -178,9 +166,8 @@ class OptimizedProductScraper:
             logger.warning("Skipping previously failed URL", url=product_url)
             return None
         
-        async with self._semaphore:  # Control concurrency
-            async with self.throttler:  # Rate limiting
-                return await self._scrape_with_retries(product_url, product_id, cache_key)
+        async with self._semaphore:  # Control concurrency and rate limiting
+            return await self._scrape_with_retries(product_url, product_id, cache_key)
     
     async def _scrape_with_retries(self, product_url: str, product_id: str, cache_key: str) -> Optional[ScrapedProductData]:
         """Scrape with retry logic and error handling"""
@@ -190,7 +177,7 @@ class OptimizedProductScraper:
         
         for attempt in range(self.config.retry_attempts + 1):
             try:
-                async with ErrorContext({'product_id': product_id, 'url': product_url, 'attempt': attempt}):
+                # Scraping attempt with error tracking
                     result = await self._perform_scrape(product_url, product_id)
                     
                     if result:
@@ -233,7 +220,7 @@ class OptimizedProductScraper:
                 product_id=product_id,
                 url=product_url,
                 original_error=last_error,
-                severity=ErrorSeverity.MEDIUM
+                severity="medium"
             )
         
         return None
