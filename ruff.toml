@@ -3,6 +3,35 @@
 
 line-length = 120
 target-version = "py310"
+# Respect gitignore
+respect-gitignore = true
+
+# Exclude common directories
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "output",
+    "*.egg-info",
+]
 
 [lint]
 # Enable comprehensive rule sets for 2025 best practices
@@ -27,8 +56,6 @@ select = [
     "S",
     # flake8-async
     "ASYNC",
-    # flake8-trio
-    "TRIO",
     # flake8-logging-format
     "G",
     # flake8-pie
@@ -45,8 +72,6 @@ select = [
     "RUF",
     # flake8-annotations
     "ANN",
-    # flake8-async
-    "ASYNC",
     # flake8-return
     "RET",
 ]
@@ -115,35 +140,6 @@ max-statements = 60
 [format]
 quote-style = "double"
 indent-style = "space"
-skip-source-first-line = false
 line-ending = "auto"
-
-# Respect gitignore
-respect-gitignore = true
-
-# Exclude common directories
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "output",
-    "*.egg-info",
-]
+# skip-magic-trailing-comma is the correct field name
+skip-magic-trailing-comma = false

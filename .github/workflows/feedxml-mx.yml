@@ -84,8 +84,8 @@ jobs:
 
     - name: Lint with Ruff
       run: |
-        ruff check . --output-format=github
-        ruff format --check .
+        ruff check . --config=ruff_ci.toml --output-format=github
+        ruff format --check . --config=ruff_ci.toml
 
     - name: Type check with MyPy
       run: |
