@@ -15,7 +15,10 @@ from urllib.parse import urlparse, urlunparse
 from typing import Dict, List, Optional, Any
 import logging
 
-from product_scraper import ProductScraper, ScrapedProductData
+try:
+    from product_scraper_enhanced import EnhancedProductScraper as ProductScraper, ScrapedProductData
+except ImportError:
+    from product_scraper import ProductScraper, ScrapedProductData
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -319,6 +322,12 @@ class EnhancedFeedProcessor:
             # Add MPN if available from scraping
             if enhanced_data.get('sku'):
                 ET.SubElement(fb_item, 'mpn').text = enhanced_data['sku']
+            
+            # Add additional images if available (Facebook supports up to 10)
+            if enhanced_data.get('additional_images'):
+                for img_url in enhanced_data['additional_images'][:10]:
+                    if img_url != image_elem.text if image_elem is not None else True:
+                        ET.SubElement(fb_item, 'additional_image_link').text = img_url
         
         return fb_root
     
