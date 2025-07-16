@@ -137,27 +137,29 @@ class EnhancedProductScraper:
                 if 'precioConIVA' in data_prod:
                     price_info['sale_price'] = float(data_prod['precioConIVA'])
                 
-                # Extract discount information
-                if 'descuento' in data_prod and data_prod['descuento'] > 0:
-                    discount_pct = data_prod['descuento']
-                    price_info['discount_percentage'] = discount_pct
-                    # Calculate original price
-                    if price_info['sale_price']:
-                        price_info['original_price'] = price_info['sale_price'] / (1 - discount_pct / 100)
-                
-                # Extract promotion information
+                # Extract promotion information first (more specific)
+                has_promotion = False
                 if 'promociones' in data_prod and data_prod['promociones']:
                     promociones = data_prod['promociones']
                     if 'descuentosUnicos' in promociones and promociones['descuentosUnicos']:
                         promo = promociones['descuentosUnicos'][0]
                         if 'descripcion' in promo:
                             price_info['promotion_text'] = promo['descripcion']
-                        if 'descuento' in promo:
+                        if 'descuento' in promo and promo['descuento'] > 0:
                             discount_pct = promo['descuento']
                             price_info['discount_percentage'] = discount_pct
                             # Calculate original price from promotion discount
                             if price_info['sale_price']:
                                 price_info['original_price'] = price_info['sale_price'] / (1 - discount_pct / 100)
+                            has_promotion = True
+                
+                # Extract generic discount information (fallback)
+                if not has_promotion and 'descuento' in data_prod and data_prod['descuento'] > 0:
+                    discount_pct = data_prod['descuento']
+                    price_info['discount_percentage'] = discount_pct
+                    # Calculate original price
+                    if price_info['sale_price']:
+                        price_info['original_price'] = price_info['sale_price'] / (1 - discount_pct / 100)
                 
                 return price_info
             

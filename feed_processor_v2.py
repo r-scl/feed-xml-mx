@@ -176,18 +176,18 @@ class EnhancedFeedProcessor:
             # Enhanced pricing with sale price support
             price_elem = item.find('.//g:price', self.namespaces)
             if price_elem is not None and price_elem.text:
-                if enhanced_data.get('sale_price'):
-                    # Update with current sale price
-                    price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
-                else:
-                    # Format existing price
-                    price_elem.text = self.format_price(price_elem.text, 'google')
-            
-            # Add sale price if available
-            if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
-                if enhanced_data['original_price'] > enhanced_data['sale_price']:
+                if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
+                    # Product has a discount - use original price as main price
+                    price_elem.text = f"{enhanced_data['original_price']:.2f} MXN"
+                    # Add sale price element
                     sale_price_elem = ET.SubElement(item, 'g:sale_price')
                     sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
+                elif enhanced_data.get('sale_price'):
+                    # Product has no discount - use sale price as main price
+                    price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
+                else:
+                    # No enhanced pricing - format existing price
+                    price_elem.text = self.format_price(price_elem.text, 'google')
             
             # Add enhanced availability with stock quantity
             availability_elem = item.find('.//g:availability', self.namespaces)
@@ -219,6 +219,17 @@ class EnhancedFeedProcessor:
                 if not detailed_desc.endswith('.'):
                     detailed_desc += '.'
                 desc_elem.text = detailed_desc
+            
+            # Add additional images if available (Google supports up to 10)
+            if enhanced_data.get('additional_images'):
+                main_image = item.find('.//g:image_link', self.namespaces)
+                main_image_url = main_image.text if main_image is not None else ""
+                
+                for img_url in enhanced_data['additional_images'][:10]:
+                    # Don't duplicate the main image
+                    if img_url != main_image_url:
+                        img_elem = ET.SubElement(item, 'g:additional_image_link')
+                        img_elem.text = img_url
         
         return google_root
     
@@ -295,16 +306,17 @@ class EnhancedFeedProcessor:
             if cond_elem is not None:
                 ET.SubElement(fb_item, 'condition').text = cond_elem.text
             
-            # Enhanced pricing
-            if enhanced_data.get('sale_price'):
-                # Use scraped sale price
+            # Enhanced pricing (consistent with Google feed logic)
+            if enhanced_data.get('original_price') and enhanced_data.get('sale_price'):
+                # Product has a discount - use original price as main price
+                ET.SubElement(fb_item, 'price').text = f"${enhanced_data['original_price']:.2f} MXN"
+                # Add sale price element
+                ET.SubElement(fb_item, 'sale_price').text = f"${enhanced_data['sale_price']:.2f} MXN"
+            elif enhanced_data.get('sale_price'):
+                # Product has no discount - use sale price as main price (no sale_price element)
                 ET.SubElement(fb_item, 'price').text = f"${enhanced_data['sale_price']:.2f} MXN"
-                
-                # Add sale price if there's a discount
-                if enhanced_data.get('original_price') and enhanced_data['original_price'] > enhanced_data['sale_price']:
-                    ET.SubElement(fb_item, 'sale_price').text = f"${enhanced_data['sale_price']:.2f} MXN"
             else:
-                # Use original XML price
+                # No enhanced pricing - use original XML price
                 price_elem = item.find('.//g:price', self.namespaces)
                 if price_elem is not None:
                     ET.SubElement(fb_item, 'price').text = self.format_price(price_elem.text, 'facebook')
@@ -325,8 +337,11 @@ class EnhancedFeedProcessor:
             
             # Add additional images if available (Facebook supports up to 10)
             if enhanced_data.get('additional_images'):
+                main_image_url = image_elem.text if image_elem is not None else ""
+                
                 for img_url in enhanced_data['additional_images'][:10]:
-                    if img_url != image_elem.text if image_elem is not None else True:
+                    # Don't duplicate the main image
+                    if img_url != main_image_url:
                         ET.SubElement(fb_item, 'additional_image_link').text = img_url
         
         return fb_root
