@@ -194,10 +194,12 @@ class EnhancedFeedProcessor:
                     # Add sale price element
                     sale_price_elem = ET.SubElement(item, 'g:sale_price')
                     sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
-                    # Add sale price effective date (today only)
+                    # Add sale price effective date (today only) with Mexico timezone
                     sale_date_elem = ET.SubElement(item, 'g:sale_price_effective_date')
                     today = datetime.now()
-                    sale_date_elem.text = f"{today.strftime('%Y-%m-%d')}T00:00:00/{today.strftime('%Y-%m-%d')}T23:59:59"
+                    # Mexico City timezone is UTC-6 (CST) or UTC-5 (CDT)
+                    # Using -0600 for consistency (CST)
+                    sale_date_elem.text = f"{today.strftime('%Y-%m-%d')}T00:00:00-0600/{today.strftime('%Y-%m-%d')}T23:59:59-0600"
                 elif enhanced_data.get('sale_price'):
                     # Product has no discount - use sale price as main price
                     price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
