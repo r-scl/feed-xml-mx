@@ -84,6 +84,11 @@ class FeedProcessor:
             if price_elem is not None and price_elem.text:
                 price_elem.text = self.format_price(price_elem.text, 'google')
             
+            # GTIN - Enviar siempre vacío
+            gtin_elem = item.find('.//g:gtin', self.namespaces)
+            if gtin_elem is not None:
+                gtin_elem.text = ""
+            
             # Descripción simple con punto
             desc_elem = item.find('.//g:description', self.namespaces)
             title_elem = item.find('.//g:title', self.namespaces)

@@ -216,6 +216,11 @@ class EnhancedFeedProcessor:
                 else:
                     availability_elem.text = 'out of stock'
             
+            # GTIN - Always send empty for Google
+            gtin_elem = item.find('.//g:gtin', self.namespaces)
+            if gtin_elem is not None:
+                gtin_elem.text = ""
+            
             # Add MPn (SKU) if available
             if enhanced_data.get('sku'):
                 mpn_elem = ET.SubElement(item, 'g:mpn')
@@ -386,10 +391,8 @@ class EnhancedFeedProcessor:
             else:
                 ET.SubElement(fb_item, 'brand').text = 'Accu-Chek'  # Default brand
             
-            # GTIN
-            gtin_elem = item.find('.//g:gtin', self.namespaces)
-            if gtin_elem is not None:
-                ET.SubElement(fb_item, 'gtin').text = gtin_elem.text
+            # GTIN - Always send empty for Facebook
+            ET.SubElement(fb_item, 'gtin').text = ""
             
             # Add MPN if available from scraping
             if enhanced_data.get('sku'):
