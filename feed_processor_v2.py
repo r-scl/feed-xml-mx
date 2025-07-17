@@ -391,8 +391,10 @@ class EnhancedFeedProcessor:
             else:
                 ET.SubElement(fb_item, 'brand').text = 'Accu-Chek'  # Default brand
             
-            # GTIN - Always send empty for Facebook
-            ET.SubElement(fb_item, 'gtin').text = ""
+            # GTIN - Send original value for Facebook
+            gtin_elem = item.find('.//g:gtin', self.namespaces)
+            if gtin_elem is not None:
+                ET.SubElement(fb_item, 'gtin').text = gtin_elem.text
             
             # Add MPN if available from scraping
             if enhanced_data.get('sku'):
