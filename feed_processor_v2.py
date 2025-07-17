@@ -190,8 +190,8 @@ class EnhancedFeedProcessor:
             if price_elem is not None and price_elem.text:
                 # Check if product has a real discount
                 if enhanced_data.get('original_price') and enhanced_data.get('sale_price') and enhanced_data['original_price'] > enhanced_data['sale_price']:
-                    # Product has a discount - use original price as main price
-                    price_elem.text = f"{enhanced_data['original_price']:.2f} MXN"
+                    # Product has a discount - use sale price for both price and sale_price
+                    price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
                     # Add sale price element
                     sale_price_elem = ET.SubElement(item, 'g:sale_price')
                     sale_price_elem.text = f"{enhanced_data['sale_price']:.2f} MXN"
